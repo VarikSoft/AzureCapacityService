@@ -20,7 +20,7 @@ Quota modification is not included in the initial MVP and can be added as a futu
 
 The application will support the following flow:
 
-![Diagram 1](https://i.imgur.com/G31MR9J.png)
+![Diagram 1](https://i.imgur.com/so1k9bR.png)
 
 The application does not include a graphical user interface.
 
