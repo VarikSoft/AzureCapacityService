@@ -300,7 +300,7 @@ GET /api/subscriptions/12345678/regions/westeurope/quotas
 
 Processing flow:
 
-![Diagram 5](https://i.imgur.com/H9Vsozp.png)
+![Diagram 5](https://i.imgur.com/xRVcLnB.png)
 
 ## 12. MVP Project Structure
 
