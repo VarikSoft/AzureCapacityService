@@ -6,31 +6,43 @@ The purpose of the application is to retrieve Azure subscription quota and capac
 
 The service allows a client to retrieve quota information for a selected Azure subscription and region.
 
-The initial MVP is read-only and focuses on retrieving:
+The MVP is read-only and supports retrieving:
 
 - quota limits;
 - current usage;
 - available capacity;
-- all quotas for the selected region;
-- a specific quota when required.
+- all quotas for a selected region;
+- a specific quota by name.
 
-Quota modification is not included in the initial MVP and can be added as a future extension.
+Quota modification is not included in the MVP and can be added as a future extension.
+
+
 
 ## 2. MVP Scope
 
-The application will support the following flow:
+The application follows this general flow:
 
 ![Diagram 1](https://i.imgur.com/so1k9bR.png)
 
 The application does not include a graphical user interface.
 
-The API can initially be tested using Swagger or Postman.
+The API can be tested directly through HTTP clients such as Postman, curl, or a browser for GET requests.
+
+The service also publishes an OpenAPI document that describes the available endpoints, parameters, response models, and HTTP status codes.
+
+Local OpenAPI document:
+
+```text
+/openapi/v1.json
+```
+
+
 
 ## 3. API Contract
 
 ### Get all quotas for a region
 
-```
+```http
 GET /api/subscriptions/{subscriptionId}/regions/{region}/quotas
 ```
 
@@ -41,6 +53,16 @@ GET /api/subscriptions/12345678/regions/westeurope/quotas
 ```
 
 The endpoint returns all available quota information for the selected subscription and region.
+
+Possible responses:
+
+```text
+200 OK
+400 Bad Request
+403 Forbidden
+429 Too Many Requests
+502 Bad Gateway
+```
 
 ### Get a specific quota
 
@@ -54,11 +76,24 @@ Example:
 GET /api/subscriptions/12345678/regions/westeurope/quotas/standardDSv5Family
 ```
 
-This endpoint returns quota information for one specific resource.
+The endpoint returns quota information for one specific quota.
+
+Possible responses:
+
+```text
+200 OK
+400 Bad Request
+403 Forbidden
+404 Not Found
+429 Too Many Requests
+502 Bad Gateway
+```
+
+
 
 ## 4. API Response
 
-Example response:
+Example response for all quotas:
 
 ```json
 {
@@ -91,42 +126,144 @@ Available capacity is calculated as:
 Available = Limit - Usage
 ```
 
-Azure provides quota limits and current usage separately for a specified scope.
+Azure provides quota limits and current usage separately for the specified resource scope.
+
+
 
 ## 5. Architecture
 
-The application will use a simple layered architecture.
+The application uses a simple layered architecture.
 
 ![Diagram 2](https://i.imgur.com/of2KKA1.png)
+
+The current request flow is:
+
+```text
+HTTP Client
+    |
+    v
+QuotaController
+    |
+    v
+IQuotaService
+    |
+    v
+QuotaService
+    |
+    v
+IAzureQuotaClient
+    |
+    v
+AzureQuotaClient
+    |
+    v
+Azure SDK / Azure Quota API
+```
 
 ### QuotaController
 
 Responsible for:
 
 - receiving HTTP requests;
-- validating required parameters;
+- validating required request parameters;
+- calling the application service;
 - returning HTTP responses;
-- mapping exceptions to appropriate HTTP status codes.
+- exposing response metadata for OpenAPI.
+
+The controller does not contain Azure SDK-specific logic.
 
 ### QuotaService
 
-Responsible for application logic:
+Responsible for application-level logic:
 
-- retrieving quota limits;
-- retrieving current usage;
-- combining quota and usage information;
-- calculating available capacity;
-- finding a specific quota.
+- requesting quota information through `IAzureQuotaClient`;
+- finding a specific quota by name;
+- keeping application logic separated from Azure SDK implementation.
+
+The specific quota search is case-insensitive.
 
 ### AzureQuotaClient
 
-Responsible for communication with Azure.
+Responsible for Azure-specific communication:
 
-It isolates Azure SDK-specific implementation from the rest of the application.
+- creating the Azure Resource Manager scope;
+- retrieving quota limits;
+- retrieving current usage;
+- matching usage values with quota limits;
+- mapping Azure SDK models to application models;
+- converting Azure SDK failures into application-specific exceptions.
 
-## 6. Azure Integration
+### GlobalExceptionHandler
 
-The MVP will initially focus on:
+Responsible for centralized exception handling.
+
+It:
+
+- handles `AzureServiceException`;
+- maps Azure-related failures to HTTP response codes;
+- logs internal Azure exception information;
+- returns a safe `ErrorResponse` to the API client.
+
+### Dependency Injection
+
+Dependencies are registered through ASP.NET Core dependency injection.
+
+The application depends on abstractions such as:
+
+```text
+IQuotaService
+IAzureQuotaClient
+```
+
+instead of depending directly on concrete implementations.
+
+This makes the service easier to extend and allows dependencies to be replaced or mocked during testing.
+
+### Async and Cancellation
+
+The HTTP request flow is asynchronous end-to-end:
+
+```text
+Controller
+    |
+    v
+QuotaService
+    |
+    v
+AzureQuotaClient
+    |
+    v
+Azure SDK
+```
+
+`CancellationToken` is propagated through the complete request chain and passed to Azure SDK asynchronous operations.
+
+If the original HTTP request is cancelled, the cancellation can propagate to the Azure operation instead of continuing unnecessary work.
+
+
+
+## 6. API Style: Controllers vs Minimal APIs
+
+ASP.NET Core Controllers were selected instead of Minimal APIs.
+
+Both approaches are suitable for a small API. Minimal APIs could provide a simpler implementation for the current MVP, but Controllers were selected because the service uses a layered architecture and is expected to grow.
+
+Controllers provide:
+
+- clear separation between HTTP handling and application logic;
+- attribute-based routing;
+- explicit response metadata;
+- straightforward OpenAPI integration;
+- dependency injection through constructors;
+- a structure that can later be extended with authorization, filters, and validation.
+
+For this project, Controllers provide a clearer structure while keeping HTTP concerns separated from Azure-specific and application logic.
+
+
+
+## 7. Azure Integration
+
+The MVP currently uses:
 
 ```text
 Microsoft.Compute
@@ -142,120 +279,169 @@ Example:
 /locations/{region}
 ```
 
-Azure Quota API can then retrieve quota limits and current usage for that scope.
+In code, the resource provider is read from configuration rather than hardcoded directly into the client.
+
+The Azure SDK is used to retrieve:
+
+- current quota limits;
+- current quota usage.
+
+The returned quota and usage collections are matched by quota name.
 
 Conceptually:
 
 ![Diagram 3](https://i.imgur.com/Ji60OJY.png)
 
-This is why `region` is required when retrieving Compute quotas.
+This is why `region` is required when retrieving Microsoft Compute quotas.
 
-## 7. Authentication
 
-The application will authenticate to Azure using Azure Identity.
 
-For development, the application can use:
+## 8. Authentication
+
+The application uses Azure Identity for authentication.
+
+For local development, the application currently uses:
 
 ```csharp
-DefaultAzureCredential
+AzureCliCredential
 ```
+
+The developer authenticates through Azure CLI:
+
+```text
+az login
+```
+
+The application then uses the authenticated Azure CLI identity when creating the Azure Resource Manager client.
+
+Credentials and access tokens are not stored directly in source code or `appsettings.json`.
+
+For deployment to Azure, authentication can later use:
+
+```csharp
+ManagedIdentityCredential
+```
+
+This avoids storing credentials in the deployed application.
+
+`DefaultAzureCredential` can also be considered in environments where a credential chain is preferred.
 
 Conceptually:
 
 ![Diagram 4](https://i.imgur.com/J0F0L5o.png)
 
-`DefaultAzureCredential` can use supported developer credentials such as Azure CLI or Visual Studio credentials when running locally.
 
-Credentials and access tokens must not be stored directly in the source code.
 
-For deployment to Azure, authentication can later be changed to Managed Identity.
+## 9. Data Models
 
-## 8. Data Model
-
-The main application model can look like:
+### QuotaInfo
 
 ```csharp
-public sealed class QuotaInfo
+public class QuotaInfo
 {
-    public string Name { get; set; }
-    public string DisplayName { get; set; }
+    public required string Name { get; init; }
+    public required string DisplayName { get; init; }
 
-    public int Limit { get; set; }
-    public int Usage { get; set; }
+    public int Limit { get; init; }
+    public int Usage { get; init; }
 
     public int Available => Limit - Usage;
 
-    public string Unit { get; set; }
+    public required string Unit { get; init; }
 }
 ```
 
-Response model:
+### QuotaResponse
 
 ```csharp
-public sealed class QuotaResponse
+public class QuotaResponse
 {
-    public string SubscriptionId { get; set; }
-    public string Region { get; set; }
-
-    public IReadOnlyCollection<QuotaInfo> Quotas { get; set; }
+    public required string SubscriptionId { get; init; }
+    public required string Region { get; init; }
+    public required IReadOnlyList<QuotaInfo> Quotas { get; init; }
 }
 ```
 
-The application does not require a database for the initial MVP because quota information is retrieved directly from Azure.
+### ErrorResponse
 
-## 9. Error Handling
-
-The application should handle common error scenarios.
-
-### Invalid request
-
-Examples:
-
-- missing subscription ID;
-- missing region;
-- invalid quota name.
-
-Response:
-
-```text
-400 Bad Request
+```csharp
+public class ErrorResponse
+{
+    public required string Error { get; init; }
+    public required string Message { get; init; }
+}
 ```
 
-### Authentication failure
+`required` ensures that mandatory non-nullable properties are initialized when an object is created.
+
+`init` is used because these response models are created once and are not expected to be modified afterward.
+
+The application does not require a database for the MVP because quota information is retrieved directly from Azure.
+
+
+
+## 10. Error Handling
+
+The application uses centralized exception handling.
+
+Azure SDK operations can throw:
 
 ```text
-401 Unauthorized
+RequestFailedException
 ```
 
-### Insufficient Azure permissions
+`AzureQuotaClient` catches Azure SDK failures and converts them into:
 
 ```text
-403 Forbidden
+AzureServiceException
 ```
 
-### Subscription or quota not found
+`GlobalExceptionHandler` then maps the Azure status code to the API response.
+
+Current mapping:
 
 ```text
-404 Not Found
+400 -> 400 Bad Request
+401 -> 401 Unauthorized
+403 -> 403 Forbidden
+404 -> 404 Not Found
+429 -> 429 Too Many Requests
+other Azure failures -> 502 Bad Gateway
 ```
 
-### Azure throttling
+Validation errors and a missing specific quota are handled directly by the controller.
+
+The API returns a safe `ErrorResponse` to the client.
+
+Example:
+
+```json
+{
+  "error": "AzureServiceError",
+  "message": "Azure service request failed."
+}
+```
+
+Detailed exception information is kept in application logs instead of being returned to the client.
+
+The application logs:
+
+- the original exception;
+- request path;
+- Azure status code;
+- final API response status code.
+
+Logging is performed through:
 
 ```text
-429 Too Many Requests
+ILogger<GlobalExceptionHandler>
 ```
 
-### Azure API failure
 
-```text
-502 Bad Gateway
-```
 
-The original Azure error and request information should be logged for debugging.
+## 11. Configuration
 
-## 10. Configuration
-
-Application configuration can be stored in:
+Application configuration is stored in:
 
 ```text
 appsettings.json
@@ -278,6 +464,28 @@ Example:
 }
 ```
 
+Azure configuration is represented by an options class:
+
+```csharp
+public class AzureOptions
+{
+    public required string ResourceProvider { get; init; }
+}
+```
+
+The options class is registered through ASP.NET Core configuration:
+
+```csharp
+builder.Services.Configure<AzureOptions>(
+    builder.Configuration.GetSection("Azure"));
+```
+
+`AzureQuotaClient` receives the configuration through:
+
+```csharp
+IOptions<AzureOptions>
+```
+
 Values such as:
 
 ```text
@@ -286,11 +494,50 @@ Region
 Quota Name
 ```
 
-should not be hardcoded into the configuration because they are parameters of individual API requests.
+are not stored in application configuration because they are parameters of individual API requests.
 
-Secrets or Azure credentials must not be stored in `appsettings.json`.
+Secrets and Azure credentials must not be stored in `appsettings.json`.
 
-## 11. Request Flow
+
+
+## 12. OpenAPI
+
+The application publishes an OpenAPI specification using ASP.NET Core OpenAPI support.
+
+OpenAPI is registered through:
+
+```csharp
+builder.Services.AddOpenApi();
+```
+
+and exposed through:
+
+```csharp
+app.MapOpenApi();
+```
+
+During local development, the specification is available at:
+
+```text
+http://localhost:5000/openapi/v1.json
+```
+
+The document describes:
+
+- API routes;
+- path parameters;
+- response status codes;
+- `QuotaInfo`;
+- `QuotaResponse`;
+- `ErrorResponse`.
+
+Controller response metadata is declared through `ProducesResponseType` attributes.
+
+The API produces JSON responses.
+
+
+
+## 13. Request Flow
 
 Example request:
 
@@ -302,67 +549,116 @@ Processing flow:
 
 ![Diagram 5](https://i.imgur.com/xRVcLnB.png)
 
-## 12. MVP Project Structure
-
-A possible project structure:
+A more detailed implementation flow is:
 
 ```text
-AzureQuotaService/
-│
-├── Controllers/
-│   └── QuotaController.cs
-│
-├── Services/
-│   └── QuotaService.cs
-│
+HTTP GET request
+    |
+    v
+QuotaController
+    |
+    | validates parameters
+    v
+QuotaService
+    |
+    v
+AzureQuotaClient
+    |
+    | creates Azure ARM scope
+    |
+    | retrieves usage
+    | retrieves quota limits
+    | matches usage to quota names
+    v
+QuotaInfo models
+    |
+    v
+QuotaResponse
+    |
+    v
+HTTP 200 JSON response
+```
+
+
+
+## 14. MVP Project Structure
+
+Current project structure:
+
+```text
+AzureCapacityService/
+|
 ├── Clients/
-│   └── AzureQuotaClient.cs
-│
+|   ├── IAzureQuotaClient.cs
+|   └── AzureQuotaClient.cs
+|
+├── Controllers/
+|   └── QuotaController.cs
+|
+├── Exceptions/
+|   ├── AzureServiceException.cs
+|   └── GlobalExceptionHandler.cs
+|
 ├── Models/
-│   ├── QuotaInfo.cs
-│   └── QuotaResponse.cs
-│
-├── Configuration/
-│   └── AzureOptions.cs
-│
+|   ├── ErrorResponse.cs
+|   ├── QuotaInfo.cs
+|   └── QuotaResponse.cs
+|
+├── Options/
+|   └── AzureOptions.cs
+|
+├── Services/
+|   ├── IQuotaService.cs
+|   └── QuotaService.cs
+|
 ├── Program.cs
 ├── appsettings.json
-│
 ├── README.md
 └── DESIGN.md
 ```
 
 The MVP remains a single ASP.NET Core application.
 
-Additional projects or microservices are not required at this stage.
+Additional services or microservices are not required for the current scope.
 
-## 13. Testing
 
-The initial version should include unit tests for:
+
+## 15. Testing
+
+The following unit tests are planned for the MVP:
 
 - available capacity calculation;
 - quota and usage mapping;
 - quota search by name;
-- invalid input;
+- invalid input handling;
 - Azure client error handling.
 
 Integration tests can later verify communication with a real Azure subscription.
 
-## 14. Future Extensions
+Manual verification already includes:
+
+- retrieving real quota limits from Azure;
+- retrieving current quota usage;
+- verifying end-to-end asynchronous calls;
+- verifying `CancellationToken` propagation by cancelling an HTTP request;
+- verifying exception mapping from Azure-related failures to API HTTP responses;
+- verifying the generated OpenAPI document.
+
+
+
+## 16. Future Extensions
 
 After the MVP is completed, the application can be extended with additional functionality.
 
-Possible extensions:
-
-### Quota modification
+### Quota Modification
 
 Support quota increase requests through Azure Quota API.
 
-Azure provides a PUT operation for creating or updating quota limits.
+Azure provides operations for requesting or updating supported quota limits.
 
-### CRUD / Azure SDK operations
+### CRUD / Azure SDK Operations
 
-Explore additional Create, Read, Update and Delete operations available through Azure SDK for supported Azure resources.
+Explore additional Create, Read, Update, and Delete operations available through Azure SDK for supported Azure resources.
 
 This can be implemented as a separate extension after the read-only quota MVP is completed.
 
@@ -401,7 +697,8 @@ Example:
 
 ```text
 Quota usage > 80%
-        ↓
+        |
+        v
 Warning / Alert
 ```
 
@@ -409,12 +706,38 @@ Warning / Alert
 
 Cache quota information for a short period to reduce unnecessary Azure API requests.
 
-## 15. MVP Summary
+### Background Processing
 
-The first version of the application is intentionally simple.
+A background worker could periodically refresh quota information and calculate additional values such as:
+
+```text
+Usage percentage
+Near-limit status
+Last updated timestamp
+```
+
+
+
+## 17. MVP Summary
+
+The first version of the application is intentionally simple and read-only.
 
 ![Diagram 6](https://i.imgur.com/nj2ZdpH.png)
 
-The MVP is read-only.
+The implemented MVP includes:
 
-Quota modification, additional Azure SDK CRUD operations, UI, monitoring and support for additional Azure resource providers are planned as future extensions.
+- ASP.NET Core Controllers;
+- dependency injection;
+- asynchronous request processing;
+- `CancellationToken` propagation;
+- Azure SDK integration;
+- quota limit retrieval;
+- current usage retrieval;
+- available capacity calculation;
+- centralized error handling;
+- structured logging;
+- `appsettings.json`;
+- Options Pattern;
+- OpenAPI publication.
+
+Quota modification, additional Azure SDK operations, UI, monitoring, caching, and support for additional Azure resource providers remain possible future extensions.
