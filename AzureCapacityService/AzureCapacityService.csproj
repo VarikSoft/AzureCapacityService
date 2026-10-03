@@ -6,4 +6,10 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Azure.Identity" Version="1.21.0" />
+      <PackageReference Include="Azure.ResourceManager.Quota" Version="1.2.1" />
+      <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    </ItemGroup>
+
 </Project>

@@ -1,30 +1,28 @@
-﻿using AzureCapacityService.Models;
+﻿using AzureCapacityService.Clients;
+using AzureCapacityService.Models;
 
 namespace AzureCapacityService.Services;
 
 public class QuotaService : IQuotaService
 {
-    public QuotaInfo? GetQuota(string subscriptionId, string region, string quotaName) // Method can return QuotaInfo or Null
+    private readonly IAzureQuotaClient _quotaClient;
+
+    public QuotaService(IAzureQuotaClient quotaClient)
     {
-        var quotas = GetQuotas(subscriptionId, region);
+        _quotaClient = quotaClient;
+    }
+    
+    public async Task<QuotaInfo?> GetQuotaAsync(string subscriptionId, string region, string quotaName, CancellationToken cancellationToken) // Method can return QuotaInfo or Null
+    {
+        var quotas = await GetQuotasAsync(subscriptionId, region, cancellationToken);
 
         return quotas.FirstOrDefault(quota => quota.Name.Equals(quotaName, StringComparison.OrdinalIgnoreCase)); 
         // That means we will find the first similar object or will return null
         // And in Equals we will ignore case of the strings
     }
     
-    public List<QuotaInfo> GetQuotas(string subscriptionId, string region)
+    public async Task<List<QuotaInfo>> GetQuotasAsync(string subscriptionId, string region, CancellationToken cancellationToken)
     {
-        return new List<QuotaInfo>
-        {
-            new QuotaInfo
-            {
-                Name = "standardDSv5Family",
-                DisplayName = "Standard DSv5 Family vCPUs",
-                Limit = 20,
-                Usage = 8,
-                Unit = "Count"
-            }
-        };
+        return await _quotaClient.GetQuotasAsync(subscriptionId, region, cancellationToken);
     }
 }

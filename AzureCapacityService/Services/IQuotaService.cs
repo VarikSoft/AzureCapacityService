@@ -4,7 +4,7 @@ namespace AzureCapacityService.Services;
 
 public interface IQuotaService
 {
-    List<QuotaInfo> GetQuotas(string subscriptionId, string region);
+    Task<List<QuotaInfo>> GetQuotasAsync(string subscriptionId, string region, CancellationToken cancellationToken);
     
-    QuotaInfo? GetQuota(string subscriptionId, string region, string quotaId);
+    Task<QuotaInfo?> GetQuotaAsync(string subscriptionId, string region, string quotaId, CancellationToken cancellationToken);
 }
