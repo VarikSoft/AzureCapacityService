@@ -1,5 +1,3 @@
-# Azure Subscription Quota Service
-
 ## 1. Overview
 
 The purpose of the application is to retrieve Azure subscription quota and capacity information.
@@ -22,7 +20,9 @@ Quota modification is not included in the MVP and can be added as a future exten
 
 The application follows this general flow:
 
-![Diagram 1](https://i.imgur.com/so1k9bR.png)
+<p align="left">
+  <img src="https://i.imgur.com/78RJ7WG.png" width="200">
+</p>
 
 The application does not include a graphical user interface.
 
@@ -134,31 +134,9 @@ Azure provides quota limits and current usage separately for the specified resou
 
 The application uses a simple layered architecture.
 
-![Diagram 2](https://i.imgur.com/of2KKA1.png)
-
-The current request flow is:
-
-```text
-HTTP Client
-    |
-    v
-QuotaController
-    |
-    v
-IQuotaService
-    |
-    v
-QuotaService
-    |
-    v
-IAzureQuotaClient
-    |
-    v
-AzureQuotaClient
-    |
-    v
-Azure SDK / Azure Quota API
-```
+<p align="left">
+  <img src="https://i.imgur.com/Ufrngjn.png" width="200">
+</p>
 
 ### QuotaController
 
@@ -223,18 +201,9 @@ This makes the service easier to extend and allows dependencies to be replaced o
 
 The HTTP request flow is asynchronous end-to-end:
 
-```text
-Controller
-    |
-    v
-QuotaService
-    |
-    v
-AzureQuotaClient
-    |
-    v
-Azure SDK
-```
+<p align="center">
+  <img src="https://i.imgur.com/BGuiNcD.png" height="200">
+</p>
 
 `CancellationToken` is propagated through the complete request chain and passed to Azure SDK asynchronous operations.
 
@@ -290,11 +259,11 @@ The returned quota and usage collections are matched by quota name.
 
 Conceptually:
 
-![Diagram 3](https://i.imgur.com/Ji60OJY.png)
+<p align="left">
+  <img src="https://i.imgur.com/Ezw0NRN.png" width="250">
+</p>
 
 This is why `region` is required when retrieving Microsoft Compute quotas.
-
-
 
 ## 8. Authentication
 
@@ -328,9 +297,9 @@ This avoids storing credentials in the deployed application.
 
 Conceptually:
 
-![Diagram 4](https://i.imgur.com/J0F0L5o.png)
-
-
+<p align="left">
+  <img src="https://i.imgur.com/RE2Sh3k.png" width="200">
+</p>
 
 ## 9. Data Models
 
@@ -377,8 +346,6 @@ public class ErrorResponse
 `init` is used because these response models are created once and are not expected to be modified afterward.
 
 The application does not require a database for the MVP because quota information is retrieved directly from Azure.
-
-
 
 ## 10. Error Handling
 
@@ -436,8 +403,6 @@ Logging is performed through:
 ```text
 ILogger<GlobalExceptionHandler>
 ```
-
-
 
 ## 11. Configuration
 
@@ -498,8 +463,6 @@ are not stored in application configuration because they are parameters of indiv
 
 Secrets and Azure credentials must not be stored in `appsettings.json`.
 
-
-
 ## 12. OpenAPI
 
 The application publishes an OpenAPI specification using ASP.NET Core OpenAPI support.
@@ -535,8 +498,6 @@ Controller response metadata is declared through `ProducesResponseType` attribut
 
 The API produces JSON responses.
 
-
-
 ## 13. Request Flow
 
 Example request:
@@ -547,39 +508,9 @@ GET /api/subscriptions/12345678/regions/westeurope/quotas
 
 Processing flow:
 
-![Diagram 5](https://i.imgur.com/xRVcLnB.png)
-
-A more detailed implementation flow is:
-
-```text
-HTTP GET request
-    |
-    v
-QuotaController
-    |
-    | validates parameters
-    v
-QuotaService
-    |
-    v
-AzureQuotaClient
-    |
-    | creates Azure ARM scope
-    |
-    | retrieves usage
-    | retrieves quota limits
-    | matches usage to quota names
-    v
-QuotaInfo models
-    |
-    v
-QuotaResponse
-    |
-    v
-HTTP 200 JSON response
-```
-
-
+<p align="center">
+  <img src="https://i.imgur.com/FYZ22QF.png" width="800">
+</p>
 
 ## 14. MVP Project Structure
 
@@ -621,8 +552,6 @@ The MVP remains a single ASP.NET Core application.
 
 Additional services or microservices are not required for the current scope.
 
-
-
 ## 15. Testing
 
 The following unit tests are planned for the MVP:
@@ -643,8 +572,6 @@ Manual verification already includes:
 - verifying `CancellationToken` propagation by cancelling an HTTP request;
 - verifying exception mapping from Azure-related failures to API HTTP responses;
 - verifying the generated OpenAPI document.
-
-
 
 ## 16. Future Extensions
 
@@ -695,12 +622,9 @@ Add alerts when quota usage approaches its limit.
 
 Example:
 
-```text
-Quota usage > 80%
-        |
-        v
-Warning / Alert
-```
+<p align="center">
+  <img src="https://i.imgur.com/CPMAGJa.png" height="100">
+</p>
 
 ### Caching
 
@@ -716,13 +640,13 @@ Near-limit status
 Last updated timestamp
 ```
 
-
-
 ## 17. MVP Summary
 
 The first version of the application is intentionally simple and read-only.
 
-![Diagram 6](https://i.imgur.com/nj2ZdpH.png)
+<p align="center">
+  <img src="https://i.imgur.com/JXmYRB4.png" width="800">
+</p>
 
 The implemented MVP includes:
 
