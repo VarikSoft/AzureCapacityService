@@ -42,6 +42,13 @@ builder.Services.AddScoped<IAzureQuotaClient, AzureQuotaClient>();
 var app = builder.Build();
 app.MapOpenApi();
 
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint(
+        "/openapi/v1.json",
+        "Azure Capacity Service v1");
+});
+
 app.UseExceptionHandler(); // This says our app to use GlobalExceptionHandler
 app.MapControllers(); // This says, please use routes from the attributes [Route], [HttpGet] etc.
 

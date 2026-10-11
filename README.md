@@ -479,7 +479,7 @@ are not stored in application configuration because they are parameters of indiv
 
 Secrets and Azure credentials must not be stored in `appsettings.json`.
 
-## 12. OpenAPI
+## 12. OpenAPI and Swagger UI
 
 The application publishes an OpenAPI specification using ASP.NET Core OpenAPI support.
 
@@ -495,7 +495,7 @@ and exposed through:
 app.MapOpenApi();
 ```
 
-During local development, the specification is available at:
+During local development, the raw OpenAPI specification is available at:
 
 ```text
 http://localhost:5000/openapi/v1.json
@@ -511,6 +511,41 @@ The document describes:
 - `ErrorResponse`.
 
 Controller response metadata is declared through `ProducesResponseType` attributes.
+
+### Swagger UI
+
+Swagger UI is provided through `Swashbuckle.AspNetCore`.
+
+It uses the existing OpenAPI document instead of generating a separate API specification:
+
+```csharp
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint(
+        "/openapi/v1.json",
+        "Azure Capacity Service v1");
+});
+```
+
+During local development, Swagger UI is available at:
+
+```text
+http://localhost:5000/swagger
+```
+
+or:
+
+```text
+http://localhost:5000/swagger/index.html
+```
+
+Swagger UI provides an interactive interface for exploring the API and testing the quota endpoints through `Try it out`.
+
+Conceptually:
+
+<p align="left">
+  <img src="https://i.imgur.com/YRaZcQD.png" width="200">
+</p>
 
 The API produces JSON responses.
 
@@ -574,28 +609,7 @@ The MVP remains a single ASP.NET Core application.
 
 Additional services or microservices are not required for the current scope.
 
-## 15. Testing
-
-The following unit tests are planned for the MVP:
-
-- available capacity calculation;
-- quota and usage mapping;
-- quota search by name;
-- invalid input handling;
-- Azure client error handling.
-
-Integration tests can later verify communication with a real Azure subscription.
-
-Manual verification already includes:
-
-- retrieving real quota limits from Azure;
-- retrieving current quota usage;
-- verifying end-to-end asynchronous calls;
-- verifying `CancellationToken` propagation by cancelling an HTTP request;
-- verifying exception mapping from Azure-related failures to API HTTP responses;
-- verifying the generated OpenAPI document.
-
-## 16. Future Extensions
+## 15. Future Extensions
 
 After the MVP is completed, the application can be extended with additional functionality.
 
@@ -662,7 +676,7 @@ Near-limit status
 Last updated timestamp
 ```
 
-## 15. Testing
+## 16. Testing
 The project includes unit tests implemented with:
 ```text
 xUnit
@@ -693,7 +707,7 @@ Manual verification already includes:
 - verifying the generated OpenAPI document;
 - verifying that Azure SDK requests use the IHttpClientFactory-backed transport.
 
-## 18. Infrastructure as Code
+## 17. Infrastructure as Code
 The project includes a Bicep-based Infrastructure as Code solution.
 The current IaC definition creates:
 
@@ -723,7 +737,7 @@ az bicep build --file iac/main.bicep
 
 More details are available in [IAC.md](docs/IaC.md).
 
-## 19. MVP Summary
+## 18. MVP Summary
 
 The first version of the application is intentionally simple and read-only.
 
@@ -745,11 +759,13 @@ The implemented MVP includes:
 - structured logging;
 - `appsettings.json`;
 - Options Pattern;
-- OpenAPI publication.
+- OpenAPI publication;
+- Swagger UI;
 - Unit tests with xUnit and Moq;
 
 Quota modification, additional Azure SDK operations, UI, monitoring, caching, and support for additional Azure resource providers remain possible future extensions.
 
-Documentation
+## Documentation
+
 - [CSCP Domain One-Pager](docs/CSCP_DOMAIN.md)
 - [Infrastructure as Code](docs/IaC.md)
