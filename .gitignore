@@ -43,6 +43,7 @@ ScaffoldingReadMe.txt
 ~$*
 *~
 CodeCoverage/
+AzureCapacityService/iac/main.json
 
 # MSBuild Binary and Structured Log
 *.binlog
