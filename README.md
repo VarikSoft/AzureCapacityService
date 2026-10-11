@@ -600,8 +600,8 @@ AzureCapacityService/
 |   └── roleAssignment.bicep
 |
 ├── DESIGN.md
-├── CSCP_DOMAIN_SHORT.md
-├── IAC.md
+├── CSCP_DOMAIN.md
+├── IaC.md
 └── README.md
 ```
 
