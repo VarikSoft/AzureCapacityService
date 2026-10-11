@@ -54,7 +54,7 @@ A subscription can have enough quota but still fail to provision a resource if t
 ## Typical Flow
 
 <p align="left">
-  <img src="https://i.imgur.com/xQNoRDY.png" width="300">
+  <img src="https://i.imgur.com/xQNoRDY.png" width="700">
 </p>
 
 ## How This Service Fits
