@@ -1,2 +1,30 @@
 ﻿<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
-	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003ACurrentQuotaLimitBaseResource_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2026_002E2_003Fresharper_002Dhost_003FSourcesCache_003Fce7834e4955d73cb283766fb1751b0ec1457d15b23805535f1c6f9f9142827c_003FCurrentQuotaLimitBaseResource_002Ecs/@EntryIndexedValue">ForceIncluded</s:String></wpf:ResourceDictionary>
+	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003ACurrentQuotaLimitBaseResource_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2026_002E2_003Fresharper_002Dhost_003FSourcesCache_003Fce7834e4955d73cb283766fb1751b0ec1457d15b23805535f1c6f9f9142827c_003FCurrentQuotaLimitBaseResource_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=57b791a6_002De056_002D4473_002Dbc73_002Dea3d9cbb43dc/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="GetQuotaAsync_ShouldFindQuota_IgnoringCase" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::33AE958E-D507-4944-A40F-ED7C9954E2A5::net10.0::AzureCapacityService.Tests.Services.QuotaServiceTests.GetQuotaAsync_ShouldFindQuota_IgnoringCase&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=58c56b00_002Df81e_002D48fd_002Da74f_002Dc8e84271fcf4/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="Continuous Testing" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;Solution /&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=679854b4_002D0358_002D4a2d_002D977d_002Daedbdff866ed/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="GetQuotaAsync_ShouldFindQuota_IgnoringCase #3" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::D577295A-B6F5-4FE2-BB86-A2A7A3F4DB6F::net10.0::AzureCapacityService.Tests.Services.QuotaServiceTests.GetQuotaAsync_ShouldFindQuota_IgnoringCase&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=c1ccb840_002De76a_002D4087_002D9e03_002D55506963cf45/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="GetQuotaAsync_ShouldFindQuota_IgnoringCase #4" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::D577295A-B6F5-4FE2-BB86-A2A7A3F4DB6F::net10.0::AzureCapacityService.Tests.Services.QuotaServiceTests&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=e86a1e60_002D62be_002D4313_002Dac0d_002Dc7a88c583054/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="GetQuotaAsync_ShouldFindQuota_IgnoringCase #2" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::33AE958E-D507-4944-A40F-ED7C9954E2A5::net10.0::AzureCapacityService.Tests.Services.QuotaServiceTests.GetQuotaAsync_ShouldFindQuota_IgnoringCase&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=fb6ef6fc_002D7f0c_002D49cd_002Db75e_002Dd8821f130e56/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="GetQuotaAsync_ShouldFindQuota_IgnoringCase #5" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::D577295A-B6F5-4FE2-BB86-A2A7A3F4DB6F::net10.0::AzureCapacityService.Tests.Services.QuotaServiceTests.GetQuotaAsync_ShouldFindQuota_IgnoringCase&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String></wpf:ResourceDictionary>

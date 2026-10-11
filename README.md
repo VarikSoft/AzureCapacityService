@@ -171,6 +171,22 @@ Responsible for Azure-specific communication:
 - mapping Azure SDK models to application models;
 - converting Azure SDK failures into application-specific exceptions.
 
+### HttpClientFactory
+
+The Azure SDK HTTP transport is configured through IHttpClientFactory.
+
+A named HTTP client is registered:
+```text
+builder.Services.AddHttpClient("AzureSdk");
+```
+
+The client is then used by ArmClient through HttpClientTransport:
+<p align="left">
+  <img src="https://i.imgur.com/PoUdjls.png" width="200">
+</p>
+
+This keeps HTTP client lifetime management centralized while preserving the existing Azure SDK-based implementation.
+
 ### GlobalExceptionHandler
 
 Responsible for centralized exception handling.
@@ -519,33 +535,39 @@ Current project structure:
 ```text
 AzureCapacityService/
 |
-├── Clients/
-|   ├── IAzureQuotaClient.cs
-|   └── AzureQuotaClient.cs
+├── AzureCapacityService/
+|   ├── Clients/
+|   │   ├── IAzureQuotaClient.cs
+|   │   └── AzureQuotaClient.cs
+|   ├── Controllers/
+|   │   └── QuotaController.cs
+|   ├── Exceptions/
+|   │   ├── AzureServiceException.cs
+|   │   └── GlobalExceptionHandler.cs
+|   ├── Models/
+|   │   ├── ErrorResponse.cs
+|   │   ├── QuotaInfo.cs
+|   │   └── QuotaResponse.cs
+|   ├── Options/
+|   │   └── AzureOptions.cs
+|   ├── Services/
+|   │   ├── IQuotaService.cs
+|   │   └── QuotaService.cs
+|   ├── Program.cs
+|   └── appsettings.json
 |
-├── Controllers/
-|   └── QuotaController.cs
+├── AzureCapacityService.Tests/
+|   └── Services/
+|       └── QuotaServiceTests.cs
 |
-├── Exceptions/
-|   ├── AzureServiceException.cs
-|   └── GlobalExceptionHandler.cs
+├── iac/
+|   ├── main.bicep
+|   └── roleAssignment.bicep
 |
-├── Models/
-|   ├── ErrorResponse.cs
-|   ├── QuotaInfo.cs
-|   └── QuotaResponse.cs
-|
-├── Options/
-|   └── AzureOptions.cs
-|
-├── Services/
-|   ├── IQuotaService.cs
-|   └── QuotaService.cs
-|
-├── Program.cs
-├── appsettings.json
-├── README.md
-└── DESIGN.md
+├── DESIGN.md
+├── CSCP_DOMAIN_SHORT.md
+├── IAC.md
+└── README.md
 ```
 
 The MVP remains a single ASP.NET Core application.
@@ -640,7 +662,68 @@ Near-limit status
 Last updated timestamp
 ```
 
-## 17. MVP Summary
+## 15. Testing
+The project includes unit tests implemented with:
+```text
+xUnit
+Moq
+```
+
+The current QuotaService tests cover:
+- finding a specific quota by name;
+- case-insensitive quota lookup;
+- returning null when a quota does not exist;
+- returning the quota list received from IAzureQuotaClient;
+- validating returned quota values including calculated Available capacity.
+
+IAzureQuotaClient is mocked, so the unit tests do not call Azure directly.
+The tests can be executed with:
+```text
+dotnet test
+```
+
+Integration tests can later verify communication with a real Azure subscription.
+
+Manual verification already includes:
+- retrieving real quota limits from Azure;
+- retrieving current quota usage;
+- verifying end-to-end asynchronous calls;
+- verifying CancellationToken propagation by cancelling an HTTP request;
+- verifying exception mapping from Azure-related failures to API HTTP responses;
+- verifying the generated OpenAPI document;
+- verifying that Azure SDK requests use the IHttpClientFactory-backed transport.
+
+## 18. Infrastructure as Code
+The project includes a Bicep-based Infrastructure as Code solution.
+The current IaC definition creates:
+
+<p align="left">
+  <img src="https://i.imgur.com/Y6iEMpj.png" width="200">
+</p>
+
+main.bicep is deployed at resource-group scope and creates the App Service infrastructure.
+
+roleAssignment.bicep is deployed as a subscription-scope module because the RBAC assignment is created at subscription scope.
+
+The Web App receives the application setting:
+```text 
+Azure__ResourceProvider = Microsoft.Compute 
+```
+which maps to:
+```text 
+Azure:ResourceProvider in ASP.NET Core configuration.
+```
+
+Bicep was selected because the project is Azure-specific, already uses Azure Resource Manager and Azure SDK, and does not require multi-cloud infrastructure or separate Terraform state management.
+
+The template can be validated with:
+```text
+az bicep build --file iac/main.bicep
+```
+
+More details are available in [IAC.md](docs/IaC.md).
+
+## 19. MVP Summary
 
 The first version of the application is intentionally simple and read-only.
 
@@ -663,5 +746,10 @@ The implemented MVP includes:
 - `appsettings.json`;
 - Options Pattern;
 - OpenAPI publication.
+- Unit tests with xUnit and Moq;
 
 Quota modification, additional Azure SDK operations, UI, monitoring, caching, and support for additional Azure resource providers remain possible future extensions.
+
+Documentation
+- [CSCP Domain One-Pager](docs/CSCP_DOMAIN.md)
+- [Infrastructure as Code](docs/IaC.md)
