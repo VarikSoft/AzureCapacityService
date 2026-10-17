@@ -1,7 +1,7 @@
 ﻿
 targetScope = 'resourceGroup'
 
-@description('Azure region')
+@description('Azure region for infrastructure deployment')
 param location string = resourceGroup().location
 
 @description('Globally unique Web App name')
@@ -28,6 +28,24 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   }
 }
 
+// Azure Key Vault
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+  name: 'kv-${uniqueString(resourceGroup().id)}'
+  location: location
+
+  properties: {
+    tenantId: subscription().tenantId
+
+    sku: {
+      family: 'A'
+      name: 'standard'
+    }
+
+    enableRbacAuthorization: true
+    softDeleteRetentionInDays: 7
+  }
+}
+
 // Azure Web App
 resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   name: appName
@@ -51,6 +69,14 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
           value: resourceProvider
         }
         {
+          name: 'Azure__SubscriptionId'
+          value: subscription().subscriptionId
+        }
+        {
+          name: 'Azure__DefaultRegion'
+          value: location
+        }
+        {
           name: 'KeyVault__VaultUri'
           value: keyVault.properties.vaultUri
         }
@@ -59,27 +85,10 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   }
 }
 
-// Azure Key Vault
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
-  name: 'kv-${uniqueString(resourceGroup().id)}'
-  location: location
-
-  properties: {
-    tenantId: subscription().tenantId
-
-    sku: {
-      family: 'A'
-      name: 'standard'
-    }
-
-    enableRbacAuthorization: true
-    softDeleteRetentionInDays: 7
-  }
-}
-
 // Built-in Key Vault Secrets User role
 var keyVaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
 
+// Grant Web App access to Key Vault secrets
 resource keyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(
     keyVault.id,
