@@ -1,6 +1,7 @@
 ﻿using Azure.Identity;
 using Azure.ResourceManager;
 using Azure.Core.Pipeline;
+using Azure.Security.KeyVault.Secrets;
 
 using AzureCapacityService.Clients;
 using AzureCapacityService.Services;
@@ -9,7 +10,7 @@ using AzureCapacityService.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var credential = new AzureCliCredential(); // For local development (when we will go production -> ManagedIdentityCredential)
+var credential = new DefaultAzureCredential(); // For local development (when we will go production -> ManagedIdentityCredential)
 builder.Services.Configure<AzureOptions>(
     builder.Configuration.GetSection("Azure"));
 
@@ -32,12 +33,25 @@ builder.Services.AddSingleton<ArmClient>(sp =>
     return new ArmClient(credential, default, options);
 });
 
+builder.Services.AddSingleton<SecretClient>(sp =>
+{
+    var vaultUri = builder.Configuration["KeyVault:VaultUri"]
+                   ?? throw new InvalidOperationException(
+                       "Key Vault URI is not configured.");
+
+    return new SecretClient(
+        new Uri(vaultUri),
+        credential);
+});
+
 builder.Services.AddControllers(); // This says to AspNet that I have controllers in the project, so please register them
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 builder.Services.AddScoped<IQuotaService, QuotaService>(); // ASP.NET now registers that this service can be creatable
 builder.Services.AddScoped<IAzureQuotaClient, AzureQuotaClient>();
+
+builder.Services.AddScoped<IKeyVaultService, KeyVaultService>();
 
 var app = builder.Build();
 app.MapOpenApi();
