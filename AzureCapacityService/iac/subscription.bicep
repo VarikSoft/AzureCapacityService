@@ -34,5 +34,6 @@ module quotaRoleAssignment './roleAssignment.bicep' = {
 
   params: {
     principalId: appInfrastructure.outputs.webAppPrincipalId
+    appName: appName
   }
 }
