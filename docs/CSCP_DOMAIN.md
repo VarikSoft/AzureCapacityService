@@ -54,11 +54,7 @@ A subscription can have enough quota but still fail to provision a resource if t
 ## Typical Flow
 
 <p align="left">
-<<<<<<< HEAD:CSCP_DOMAIN.md
-  <img src="https://i.imgur.com/xQNoRDY.png" Heigth="300">
-=======
-  <img src="https://i.imgur.com/xQNoRDY.png" width="300">
->>>>>>> 6fa538f (feat: add unit tests, HttpClientFactory and Bicep IaC):docs/CSCP_DOMAIN.md
+  <img src="https://i.imgur.com/xQNoRDY.png" width="1000">
 </p>
 
 ## How This Service Fits
