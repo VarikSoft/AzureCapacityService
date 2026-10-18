@@ -1,103 +1,149 @@
-## 1. Overview
+<div align="center">
 
-The purpose of the application is to retrieve Azure subscription quota and capacity information.
+# Azure Capacity Service
 
-The service allows a client to retrieve quota information for a selected Azure subscription and region.
+**Azure subscription quota insights, delivered through a secure .NET API.**
 
-The MVP is read-only and supports retrieving:
+An ASP.NET Core service for inspecting quota limits, current usage, and remaining quota across Azure subscriptions and regions.
 
-- quota limits;
-- current usage;
-- available capacity;
-- all quotas for a selected region;
-- a specific quota by name.
-
-Quota modification is not included in the MVP and can be added as a future extension.
-
-
-
-## 2. MVP Scope
-
-The application follows this general flow:
-
-<p align="left">
-  <img src="https://i.imgur.com/78RJ7WG.png" width="200">
+<p>
+  <img src="https://img.shields.io/badge/.NET-10-512BD4?style=for-the-badge&logo=dotnet&logoColor=white" alt=".NET 10" />
+  <img src="https://img.shields.io/badge/Azure-App_Service-0078D4?style=for-the-badge&logo=microsoftazure&logoColor=white" alt="Azure App Service" />
+  <img src="https://img.shields.io/badge/Infrastructure-Bicep-2563EB?style=for-the-badge" alt="Bicep" />
+  <img src="https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="GitHub Actions" />
 </p>
 
-The application does not include a graphical user interface.
+<p>
+  <img src="https://img.shields.io/badge/Deployment-Live-238636?style=flat-square" alt="Live deployment" />
+  <img src="https://img.shields.io/badge/API-Read_Only-0969DA?style=flat-square" alt="Read-only API" />
+</p>
 
-The API can be tested directly through HTTP clients such as Postman, curl, or a browser for GET requests.
+<p>
+  <a href="https://capacity-variksoft-dev-2026.azurewebsites.net/swagger"><strong>Explore Swagger UI</strong></a>
+  &nbsp; · &nbsp;
+  <a href="https://capacity-variksoft-dev-2026.azurewebsites.net/api/quotas"><strong>Try the API</strong></a>
+  &nbsp; · &nbsp;
+  <a href="https://capacity-variksoft-dev-2026.azurewebsites.net/openapi/v1.json"><strong>OpenAPI Specification</strong></a>
+</p>
 
-The service also publishes an OpenAPI document that describes the available endpoints, parameters, response models, and HTTP status codes.
+</div>
 
-Local OpenAPI document:
+## 1. Overview
 
-```text
-/openapi/v1.json
+The service answers: **How much quota is available to this Azure subscription in a given region?**
+
+The MVP supports:
+
+- Reading quota limits and current usage from Azure Quota API.
+- Calculating available quota.
+- Listing quotas for a subscription and region.
+- Finding a specific quota by name (case-insensitive).
+- Using a configured default subscription and region, while allowing explicit overrides.
+- Exposing JSON endpoints and interactive Swagger UI.
+
+The API does not modify quotas, provision Azure resources, or guarantee regional capacity.
+
+```mermaid
+---
+config:
+  layout: elk
+  look: classic
+  flowchart:
+    curve: linear
+---
+flowchart LR
+    Client[HTTP client or Swagger UI] --> API[ASP.NET Core API]
+    API --> Service[QuotaService]
+    Service --> SDK[AzureQuotaClient / Azure SDK]
+    SDK --> Azure[Azure Quota API]
+    Azure --> SDK
+    SDK --> Service
+    Service --> Client
 ```
 
+## 2. MVP Scope and Deployment Status
 
+The application is a single ASP.NET Core Web API, without a custom graphical frontend. Swagger UI is available for interactive testing; a dedicated UI remains a future enhancement.
+
+The current Azure deployment uses:
+
+| Component | Current implementation |
+| --- | --- |
+| Runtime | .NET 10, ASP.NET Core Controllers |
+| Hosting | Linux Azure App Service, Free F1 plan |
+| Web App | `capacity-variksoft-dev-2026` |
+| Resource group | `rg-azure-capacity-dev` |
+| Infrastructure region | `swedencentral` |
+| Quota resource provider | `Microsoft.Compute` |
+| Authentication | `DefaultAzureCredential`; system-assigned managed identity in Azure |
+| Infrastructure | Bicep at subscription and resource-group scopes |
+| Delivery | GitHub Actions CI and CD using OIDC |
+| Secret storage | Azure Key Vault with RBAC; integration prepared but not part of the quota request path |
+
+Deployed application:
+
+- API: `https://capacity-variksoft-dev-2026.azurewebsites.net/api/quotas`
+- Swagger UI: `https://capacity-variksoft-dev-2026.azurewebsites.net/swagger`
+- OpenAPI JSON: `https://capacity-variksoft-dev-2026.azurewebsites.net/openapi/v1.json`
+
+The default quota endpoint has been exercised against the deployed application. This is a development deployment, not a claim of production readiness.
 
 ## 3. API Contract
 
-### Get all quotas for a region
+All routes are read-only HTTP `GET` endpoints.
+
+| Endpoint | Subscription | Region | Result |
+| --- | --- | --- | --- |
+| `GET /api/quotas` | Configured default | Configured default | All quotas |
+| `GET /api/regions/{region}/quotas` | Configured default | Explicit | All quotas |
+| `GET /api/subscriptions/{subscriptionId}/regions/{region}/quotas` | Explicit | Explicit | All quotas |
+| `GET /api/subscriptions/{subscriptionId}/regions/{region}/quotas/{quotaName}` | Explicit | Explicit | Specific quota |
+
+### Default subscription and region
 
 ```http
-GET /api/subscriptions/{subscriptionId}/regions/{region}/quotas
+GET /api/quotas
 ```
 
-Example:
+Uses `Azure:SubscriptionId` and `Azure:DefaultRegion` from application configuration. The default region is currently `swedencentral`.
+
+### Override only the region
 
 ```http
-GET /api/subscriptions/12345678/regions/westeurope/quotas
+GET /api/regions/westeurope/quotas
 ```
 
-The endpoint returns all available quota information for the selected subscription and region.
+Uses the configured subscription ID with the requested region.
 
-Possible responses:
-
-```text
-200 OK
-400 Bad Request
-403 Forbidden
-429 Too Many Requests
-502 Bad Gateway
-```
-
-### Get a specific quota
+### Override both subscription and region
 
 ```http
-GET /api/subscriptions/{subscriptionId}/regions/{region}/quotas/{quotaName}
+GET /api/subscriptions/{subscriptionId}/regions/westeurope/quotas
 ```
 
-Example:
+This is useful for testing another subscription, **provided the application's managed identity has permission on that subscription**. Supplying a subscription ID does not grant access.
+
+### Retrieve one quota by name
 
 ```http
-GET /api/subscriptions/12345678/regions/westeurope/quotas/standardDSv5Family
+GET /api/subscriptions/{subscriptionId}/regions/westeurope/quotas/standardDSv5Family
 ```
 
-The endpoint returns quota information for one specific quota.
+The specific-quota route uses an explicit subscription and region. A short default-based route for an individual quota has **not** been implemented.
 
-Possible responses:
+### HTTP responses
 
-```text
-200 OK
-400 Bad Request
-403 Forbidden
-404 Not Found
-429 Too Many Requests
-502 Bad Gateway
-```
+The quota-list routes may return `200`, `400`, `403`, `429`, or `502`, depending on validation and Azure API results. Missing default configuration can return `500`. The specific-quota route can also return `404` if the quota name is not found. Azure errors may also be mapped to `401` or `404` by the global handler. Unexpected failures are handled by ASP.NET Core's exception pipeline.
 
-
+> **Security:** The current controllers do not enforce caller authentication or authorization. Azure RBAC protects Azure resources from the application's identity; it does **not** protect these public HTTP endpoints. Add API authentication, authorization, and appropriate restrictions before exposing this service for sensitive or multi-user use.
 
 ## 4. API Response
 
-Example response for all quotas:
+Illustrative response (not live quota data):
 
 ```json
 {
-  "subscriptionId": "12345678",
+  "subscriptionId": "<subscription-id>",
   "region": "westeurope",
   "quotas": [
     {
@@ -120,219 +166,246 @@ Example response for all quotas:
 }
 ```
 
-Available capacity is calculated as:
+Available quota is computed in the response model:
 
 ```text
 Available = Limit - Usage
 ```
 
-Azure provides quota limits and current usage separately for the specified resource scope.
-
-
+Azure exposes quota limits and usage separately; the client matches them by quota name. Available quota is not a guarantee that a VM can be provisioned immediately.
 
 ## 5. Architecture
 
-The application uses a simple layered architecture.
+The application uses a layered design. Controllers handle HTTP, services handle application behavior, and the Azure client encapsulates SDK calls.
 
-<p align="left">
-  <img src="https://i.imgur.com/Ufrngjn.png" width="200">
-</p>
+```mermaid
+---
+config:
+  layout: elk
+  look: classic
+  flowchart:
+    curve: linear
+---
+flowchart TB
+    Consumer[HTTP Client / Swagger UI] --> Controller[QuotaController]
+    Controller --> IService[IQuotaService]
+    IService --> Service[QuotaService]
+    Service --> IClient[IAzureQuotaClient]
+    IClient --> Client[AzureQuotaClient]
+    Client --> ARM[ArmClient / Azure Quota SDK]
+    ARM --> Azure[Azure Quota API]
+    Client -. SDK failure .-> Handler[GlobalExceptionHandler]
+    Handler -. Safe error response .-> Consumer
+```
 
 ### QuotaController
 
-Responsible for:
-
-- receiving HTTP requests;
-- validating required request parameters;
-- calling the application service;
-- returning HTTP responses;
-- exposing response metadata for OpenAPI.
-
-The controller does not contain Azure SDK-specific logic.
+- Receives requests, validates required route parameters, and returns HTTP responses.
+- Resolves default subscription/region from `IOptions<AzureOptions>` for the short routes.
+- Delegates quota retrieval to `IQuotaService`.
+- Declares OpenAPI response metadata for the explicit routes.
+- Does not contain Azure SDK-specific quota retrieval logic.
 
 ### QuotaService
 
-Responsible for application-level logic:
-
-- requesting quota information through `IAzureQuotaClient`;
-- finding a specific quota by name;
-- keeping application logic separated from Azure SDK implementation.
-
-The specific quota search is case-insensitive.
+- Delegates list retrieval to `IAzureQuotaClient`.
+- Implements case-insensitive lookup of a quota by name.
+- Keeps application logic separate from Azure SDK details.
 
 ### AzureQuotaClient
 
-Responsible for Azure-specific communication:
+- Builds the ARM quota scope from subscription, provider, and region.
+- Retrieves usage and quota-limit collections asynchronously.
+- Matches usage to limits by quota name.
+- Maps Azure SDK models to `QuotaInfo`.
+- Wraps `RequestFailedException` as `AzureServiceException`.
 
-- creating the Azure Resource Manager scope;
-- retrieving quota limits;
-- retrieving current usage;
-- matching usage values with quota limits;
-- mapping Azure SDK models to application models;
-- converting Azure SDK failures into application-specific exceptions.
+### HttpClientFactory and SDK transport
 
-### HttpClientFactory
+`Program.cs` registers a named client:
 
-The Azure SDK HTTP transport is configured through IHttpClientFactory.
-
-A named HTTP client is registered:
-```text
+```csharp
 builder.Services.AddHttpClient("AzureSdk");
 ```
 
-The client is then used by ArmClient through HttpClientTransport:
-<p align="left">
-  <img src="https://i.imgur.com/PoUdjls.png" width="200">
-</p>
+It passes an `HttpClientFactory`-created client to `ArmClient` via `HttpClientTransport`.
 
-This keeps HTTP client lifetime management centralized while preserving the existing Azure SDK-based implementation.
-
-### GlobalExceptionHandler
-
-Responsible for centralized exception handling.
-
-It:
-
-- handles `AzureServiceException`;
-- maps Azure-related failures to HTTP response codes;
-- logs internal Azure exception information;
-- returns a safe `ErrorResponse` to the API client.
-
-### Dependency Injection
-
-Dependencies are registered through ASP.NET Core dependency injection.
-
-The application depends on abstractions such as:
-
-```text
-IQuotaService
-IAzureQuotaClient
+```mermaid
+---
+config:
+  layout: elk
+  look: classic
+  flowchart:
+    curve: linear
+---
+flowchart LR
+    Factory[IHttpClientFactory] --> HttpClient[Named HttpClient: AzureSdk]
+    HttpClient --> Transport[HttpClientTransport]
+    Transport --> Options[ArmClientOptions]
+    Options --> ARM[ArmClient]
+    ARM --> Azure[Azure Resource Manager]
 ```
 
-instead of depending directly on concrete implementations.
+### Dependency injection
 
-This makes the service easier to extend and allows dependencies to be replaced or mocked during testing.
+The API registers `IQuotaService` / `QuotaService`, `IAzureQuotaClient` / `AzureQuotaClient`, and `IKeyVaultService` / `KeyVaultService` as scoped services. `ArmClient` and `SecretClient` are registered as singletons. This separates callers from concrete implementations and enables unit testing with mocks.
 
-### Async and Cancellation
+### Async and cancellation
 
-The HTTP request flow is asynchronous end-to-end:
+The `CancellationToken` is passed from the HTTP request through the service and Azure SDK calls. Cancellation is cooperative; it can stop work when the underlying operations honor the token.
 
-<p align="center">
-  <img src="https://i.imgur.com/BGuiNcD.png" height="200">
-</p>
-
-`CancellationToken` is propagated through the complete request chain and passed to Azure SDK asynchronous operations.
-
-If the original HTTP request is cancelled, the cancellation can propagate to the Azure operation instead of continuing unnecessary work.
-
-
+```mermaid
+sequenceDiagram
+    participant Caller as HTTP Client
+    participant Controller as QuotaController
+    participant Service as QuotaService
+    participant Client as AzureQuotaClient
+    participant SDK as Azure SDK
+    Caller->>Controller: GET /api/quotas
+    Controller->>Service: GetQuotasAsync(..., token)
+    Service->>Client: GetQuotasAsync(..., token)
+    Client->>SDK: GetAllAsync(token)
+    opt Caller disconnects / cancels
+        Caller--xController: Request cancelled
+        Controller-->>Service: Cancellation propagated
+        Service-->>Client: Cancellation propagated
+        Client-->>SDK: Cancellation token
+    end
+    SDK-->>Client: Quota and usage data
+    Client-->>Service: List of QuotaInfo
+    Service-->>Controller: Quotas
+    Controller-->>Caller: JSON response (if still connected)
+```
 
 ## 6. API Style: Controllers vs Minimal APIs
 
-ASP.NET Core Controllers were selected instead of Minimal APIs.
-
-Both approaches are suitable for a small API. Minimal APIs could provide a simpler implementation for the current MVP, but Controllers were selected because the service uses a layered architecture and is expected to grow.
-
-Controllers provide:
-
-- clear separation between HTTP handling and application logic;
-- attribute-based routing;
-- explicit response metadata;
-- straightforward OpenAPI integration;
-- dependency injection through constructors;
-- a structure that can later be extended with authorization, filters, and validation.
-
-For this project, Controllers provide a clearer structure while keeping HTTP concerns separated from Azure-specific and application logic.
-
-
+ASP.NET Core Controllers were selected over Minimal APIs. Both can implement the MVP, but Controllers provide explicit attribute routing, response metadata, constructor injection, and a convenient place to add authorization and validation later. HTTP concerns remain separate from the service and Azure SDK layers.
 
 ## 7. Azure Integration
 
-The MVP currently uses:
+The current provider is `Microsoft.Compute`. The quota scope has the following form:
 
 ```text
-Microsoft.Compute
+/subscriptions/{subscriptionId}/providers/Microsoft.Compute/locations/{region}
 ```
 
-Quota information is retrieved using an Azure Resource Manager scope.
+`AzureQuotaClient` reads the provider name from `AzureOptions`, rather than hardcoding it in the client. It uses `ArmClient.GetCurrentUsagesBases(scope)` and `ArmClient.GetCurrentQuotaLimitBases(scope)` to retrieve usage and limits.
 
-Example:
-
-```text
-/subscriptions/{subscriptionId}
-/providers/Microsoft.Compute
-/locations/{region}
+```mermaid
+---
+config:
+  layout: elk
+  look: classic
+  flowchart:
+    curve: linear
+---
+flowchart TB
+    Scope[Subscription + Provider + Region] --> Usage[GetCurrentUsagesBases]
+    Scope --> Limits[GetCurrentQuotaLimitBases]
+    Usage --> Join[Match by quota name]
+    Limits --> Join
+    Join --> Model[QuotaInfo: Limit, Usage, Available, Unit]
+    Model --> JSON[QuotaResponse JSON]
 ```
 
-In code, the resource provider is read from configuration rather than hardcoded directly into the client.
+Regional quotas may differ between regions in the same subscription. The service reports quota availability, not physical hardware capacity.
 
-The Azure SDK is used to retrieve:
+## 8. Authentication and Azure RBAC
 
-- current quota limits;
-- current quota usage.
+### Runtime authentication
 
-The returned quota and usage collections are matched by quota name.
-
-Conceptually:
-
-<p align="left">
-  <img src="https://i.imgur.com/Ezw0NRN.png" width="250">
-</p>
-
-This is why `region` is required when retrieving Microsoft Compute quotas.
-
-## 8. Authentication
-
-The application uses Azure Identity for authentication.
-
-For local development, the application currently uses:
+The application currently uses:
 
 ```csharp
-AzureCliCredential
+var credential = new DefaultAzureCredential();
 ```
 
-The developer authenticates through Azure CLI:
+For local development, the credential chain can use the developer's Azure CLI login (`az login`) or another supported development credential. In Azure App Service, it can use the Web App's **system-assigned managed identity**. No Azure client secret needs to be stored in source code.
 
-```text
-az login
+### Separate deployment and runtime identities
+
+The GitHub Actions deployment identity and the Web App runtime identity are **different principals** with different permissions.
+
+```mermaid
+---
+config:
+  layout: elk
+  look: classic
+  flowchart:
+    curve: linear
+---
+flowchart TB
+    GitHub[GitHub Actions] -->|OIDC federation| DeployID[User-assigned deployment identity]
+    DeployID -->|Contributor on subscription| App[Azure App Service]
+    App -->|System-assigned managed identity| RuntimeID[Web App runtime identity]
+    RuntimeID -->|Reader on subscription| Quota[Azure Quota API]
+    RuntimeID -->|Key Vault Secrets User on vault| Vault[Azure Key Vault]
 ```
 
-The application then uses the authenticated Azure CLI identity when creating the Azure Resource Manager client.
+### Role assignments
 
-Credentials and access tokens are not stored directly in source code or `appsettings.json`.
+| Principal | Role | Scope | Purpose |
+| --- | --- | --- | --- |
+| GitHub deployment managed identity | Contributor | Subscription | Publish application and manage supported Azure resources; cannot assign RBAC roles |
+| Web App system-assigned managed identity | Reader | Subscription | Read subscription resources and supported quota data |
+| Web App system-assigned managed identity | Key Vault Secrets User | Specific Key Vault | Read secret values from that vault |
+| Human deployment account | Owner (used for initial infrastructure deployment) | Subscription | Bootstrap resources and RBAC assignments |
 
-For deployment to Azure, authentication can later use:
+`roleAssignment.bicep` creates the subscription-level Reader assignment. `main.bicep` creates the Key Vault-scoped Secrets User assignment. The two assignments are separate because they apply to different scopes and permissions.
+
+**RBAC is not authentication:** managed identity obtains a token, while RBAC determines which Azure operations that identity may perform. The application's ability to query a second subscription depends on its permissions in that subscription.
+
+## 9. Azure Key Vault Integration
+
+The Bicep deployment provisions an RBAC-enabled Azure Key Vault and grants the Web App identity the **Key Vault Secrets User** role. `KeyVault__VaultUri` configures its endpoint.
+
+`Program.cs` registers `SecretClient` using the same `DefaultAzureCredential` used by `ArmClient`:
 
 ```csharp
-ManagedIdentityCredential
+builder.Services.AddSingleton<SecretClient>(sp =>
+{
+    var vaultUri = builder.Configuration["KeyVault:VaultUri"]
+        ?? throw new InvalidOperationException("Key Vault URI is not configured.");
+
+    return new SecretClient(new Uri(vaultUri), credential);
+});
 ```
 
-This avoids storing credentials in the deployed application.
+`KeyVaultService` implements `IKeyVaultService` and provides `VerifySecretAccessAsync(CancellationToken)`. It attempts to read a secret named `DeploymentVerificationSecret` and returns whether the retrieved value is non-null.
 
-`DefaultAzureCredential` can also be considered in environments where a credential chain is preferred.
+```mermaid
+sequenceDiagram
+    participant Code as KeyVaultService
+    participant Client as SecretClient
+    participant Identity as App Service Managed Identity
+    participant Vault as Azure Key Vault
+    Code->>Client: GetSecretAsync("DeploymentVerificationSecret")
+    Client->>Identity: Acquire Azure access token
+    Identity-->>Client: Token
+    Client->>Vault: Read secret using token
+    Note over Vault: RBAC: Key Vault Secrets User
+    Vault-->>Client: Secret response (if present and authorized)
+    Client-->>Code: Secret value
+    Note over Code: Return true if value is non-null
+```
 
-Conceptually:
+**Current limitation:** The Key Vault service is registered but is **not called by the quota endpoints**. The quota request path does not require a Key Vault secret. The existence of `DeploymentVerificationSecret` and successful runtime access to it have not been established by the code alone. Avoid exposing secret values through HTTP endpoints or logs.
 
-<p align="left">
-  <img src="https://i.imgur.com/RE2Sh3k.png" width="200">
-</p>
+Managed identity already authenticates to Azure Quota API without a stored secret. Key Vault is intended for credentials or other secrets needed by future integrations.
 
-## 9. Data Models
+## 10. Data Models
 
 ### QuotaInfo
 
 ```csharp
 public class QuotaInfo
 {
-    public required string Name { get; init; }
-    public required string DisplayName { get; init; }
-
-    public int Limit { get; init; }
-    public int Usage { get; init; }
-
+    public required string Name { get; set; }
+    public required string DisplayName { get; set; }
+    public int Limit { get; set; }
+    public int Usage { get; set; }
     public int Available => Limit - Usage;
-
-    public required string Unit { get; init; }
+    public required string Unit { get; set; }
 }
 ```
 
@@ -341,9 +414,9 @@ public class QuotaInfo
 ```csharp
 public class QuotaResponse
 {
-    public required string SubscriptionId { get; init; }
-    public required string Region { get; init; }
-    public required IReadOnlyList<QuotaInfo> Quotas { get; init; }
+    public required string SubscriptionId { get; set; }
+    public required string Region { get; set; }
+    public required IReadOnlyList<QuotaInfo> Quotas { get; set; }
 }
 ```
 
@@ -352,51 +425,27 @@ public class QuotaResponse
 ```csharp
 public class ErrorResponse
 {
-    public required string Error { get; init; }
-    public required string Message { get; init; }
+    public required string Error { get; set; }
+    public required string Message { get; set; }
 }
 ```
 
-`required` ensures that mandatory non-nullable properties are initialized when an object is created.
+The current model classes use `required` and `set` accessors. `Available` is computed rather than stored. No database is required for the read-only MVP.
 
-`init` is used because these response models are created once and are not expected to be modified afterward.
+## 11. Error Handling and Logging
 
-The application does not require a database for the MVP because quota information is retrieved directly from Azure.
+`AzureQuotaClient` catches `RequestFailedException` and wraps it in `AzureServiceException`. `GlobalExceptionHandler` logs the original exception and maps Azure status codes:
 
-## 10. Error Handling
+| Azure error status | API status |
+| --- | --- |
+| 400 | 400 Bad Request |
+| 401 | 401 Unauthorized |
+| 403 | 403 Forbidden |
+| 404 | 404 Not Found |
+| 429 | 429 Too Many Requests |
+| Other Azure SDK failures | 502 Bad Gateway |
 
-The application uses centralized exception handling.
-
-Azure SDK operations can throw:
-
-```text
-RequestFailedException
-```
-
-`AzureQuotaClient` catches Azure SDK failures and converts them into:
-
-```text
-AzureServiceException
-```
-
-`GlobalExceptionHandler` then maps the Azure status code to the API response.
-
-Current mapping:
-
-```text
-400 -> 400 Bad Request
-401 -> 401 Unauthorized
-403 -> 403 Forbidden
-404 -> 404 Not Found
-429 -> 429 Too Many Requests
-other Azure failures -> 502 Bad Gateway
-```
-
-Validation errors and a missing specific quota are handled directly by the controller.
-
-The API returns a safe `ErrorResponse` to the client.
-
-Example:
+The global handler returns a safe error body:
 
 ```json
 {
@@ -405,367 +454,389 @@ Example:
 }
 ```
 
-Detailed exception information is kept in application logs instead of being returned to the client.
+The controller directly handles validation errors and a missing named quota. Missing default subscription or region configuration returns an HTTP 500 Problem Details response. The global handler logs the original exception, request path, Azure status, and final response status without returning the Azure exception message to the caller.
 
-The application logs:
+## 12. Configuration
 
-- the original exception;
-- request path;
-- Azure status code;
-- final API response status code.
-
-Logging is performed through:
-
-```text
-ILogger<GlobalExceptionHandler>
-```
-
-## 11. Configuration
-
-Application configuration is stored in:
-
-```text
-appsettings.json
-```
-
-Example:
+The local `AzureCapacityService/appsettings.json` defines the resource provider:
 
 ```json
 {
   "Azure": {
     "ResourceProvider": "Microsoft.Compute"
-  },
-
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
   }
 }
 ```
 
-Azure configuration is represented by an options class:
+In Azure, Bicep supplies the following App Settings:
+
+| Azure App Setting | ASP.NET Core configuration key | Value source |
+| --- | --- | --- |
+| `Azure__ResourceProvider` | `Azure:ResourceProvider` | Bicep `resourceProvider` parameter (`Microsoft.Compute`) |
+| `Azure__SubscriptionId` | `Azure:SubscriptionId` | `subscription().subscriptionId` |
+| `Azure__DefaultRegion` | `Azure:DefaultRegion` | Bicep `location` parameter (`swedencentral`) |
+| `KeyVault__VaultUri` | `KeyVault:VaultUri` | Deployed Key Vault URI |
+
+ASP.NET Core maps double underscores in environment variable names to colons in configuration keys.
+
+The current options class is:
 
 ```csharp
 public class AzureOptions
 {
     public required string ResourceProvider { get; init; }
+    public string? SubscriptionId { get; init; }
+    public string? DefaultRegion { get; init; }
 }
 ```
 
-The options class is registered through ASP.NET Core configuration:
+It is registered via the Options Pattern:
 
 ```csharp
 builder.Services.Configure<AzureOptions>(
     builder.Configuration.GetSection("Azure"));
 ```
 
-`AzureQuotaClient` receives the configuration through:
+The default subscription and region are optional for explicit routes but required for the short routes. When running locally, supply them through environment variables, user secrets, or a local configuration override if you want to call `/api/quotas`. They are configuration values, **not authentication credentials**. Do not commit actual secrets or tokens to the repository.
 
-```csharp
-IOptions<AzureOptions>
-```
+The default quota region currently matches the infrastructure deployment region; the Bicep template does not expose a separate default quota region parameter.
 
-Values such as:
+## 13. OpenAPI and Swagger UI
 
-```text
-Subscription ID
-Region
-Quota Name
-```
-
-are not stored in application configuration because they are parameters of individual API requests.
-
-Secrets and Azure credentials must not be stored in `appsettings.json`.
-
-## 12. OpenAPI and Swagger UI
-
-The application publishes an OpenAPI specification using ASP.NET Core OpenAPI support.
-
-OpenAPI is registered through:
+The application registers ASP.NET Core OpenAPI support:
 
 ```csharp
 builder.Services.AddOpenApi();
-```
-
-and exposed through:
-
-```csharp
 app.MapOpenApi();
 ```
 
-During local development, the raw OpenAPI specification is available at:
-
-```text
-http://localhost:5000/openapi/v1.json
-```
-
-The document describes:
-
-- API routes;
-- path parameters;
-- response status codes;
-- `QuotaInfo`;
-- `QuotaResponse`;
-- `ErrorResponse`.
-
-Controller response metadata is declared through `ProducesResponseType` attributes.
-
-### Swagger UI
-
-Swagger UI is provided through `Swashbuckle.AspNetCore`.
-
-It uses the existing OpenAPI document instead of generating a separate API specification:
+Swagger UI is configured to use the same OpenAPI document:
 
 ```csharp
 app.UseSwaggerUI(options =>
 {
-    options.SwaggerEndpoint(
-        "/openapi/v1.json",
-        "Azure Capacity Service v1");
+    options.SwaggerEndpoint("/openapi/v1.json", "Azure Capacity Service v1");
 });
 ```
 
-During local development, Swagger UI is available at:
-
-```text
-http://localhost:5000/swagger
+```mermaid
+---
+config:
+  layout: elk
+  look: classic
+  flowchart:
+    curve: linear
+---
+flowchart LR
+    Browser[Browser] --> Swagger[Swagger UI: /swagger]
+    Swagger --> Spec[OpenAPI: /openapi/v1.json]
+    Swagger -->|Try it out| API[QuotaController endpoints]
+    API --> JSON[JSON response]
+    JSON --> Swagger
 ```
 
-or:
+Local addresses depend on the launch profile and bound port; examples include `/swagger` and `/openapi/v1.json` on the local application host. The deployed URLs are listed in Section 2.
 
-```text
-http://localhost:5000/swagger/index.html
-```
+## 14. End-to-End Request Flow
 
-Swagger UI provides an interactive interface for exploring the API and testing the quota endpoints through `Try it out`.
-
-Conceptually:
-
-<p align="left">
-  <img src="https://i.imgur.com/YRaZcQD.png" width="200">
-</p>
-
-The API produces JSON responses.
-
-## 13. Request Flow
-
-Example request:
+For a default quota request:
 
 ```http
-GET /api/subscriptions/12345678/regions/westeurope/quotas
+GET /api/quotas
 ```
 
-Processing flow:
+```mermaid
+sequenceDiagram
+    participant User as API Caller
+    participant API as QuotaController
+    participant Config as AzureOptions
+    participant Service as QuotaService
+    participant Client as AzureQuotaClient
+    participant Identity as Managed Identity
+    participant Azure as Azure Quota API
+    User->>API: GET /api/quotas
+    API->>Config: Read default subscription and region
+    Config-->>API: Subscription ID, swedencentral
+    API->>Service: GetQuotasAsync(...)
+    Service->>Client: GetQuotasAsync(...)
+    Client->>Identity: Authenticate through DefaultAzureCredential
+    Identity-->>Client: Azure token
+    Client->>Azure: Get usages and quota limits
+    Azure-->>Client: Usage and quota data
+    Client->>Client: Match names and map QuotaInfo
+    Client-->>Service: Quota list
+    Service-->>API: Quota list
+    API-->>User: 200 QuotaResponse JSON
+```
 
-<p align="center">
-  <img src="https://i.imgur.com/FYZ22QF.png" width="800">
-</p>
+The actual Azure SDK token acquisition is handled internally and may be cached; the sequence illustrates the logical authentication and authorization path.
 
-## 14. MVP Project Structure
+## 15. Project Structure
 
-Current project structure:
+Relevant project files in the current repository:
 
 ```text
 AzureCapacityService/
-|
+├── .github/
+│   └── workflows/
+│       ├── azure-auth.yml
+│       ├── ci.yml
+│       └── cd.yml
 ├── AzureCapacityService/
-|   ├── Clients/
-|   │   ├── IAzureQuotaClient.cs
-|   │   └── AzureQuotaClient.cs
-|   ├── Controllers/
-|   │   └── QuotaController.cs
-|   ├── Exceptions/
-|   │   ├── AzureServiceException.cs
-|   │   └── GlobalExceptionHandler.cs
-|   ├── Models/
-|   │   ├── ErrorResponse.cs
-|   │   ├── QuotaInfo.cs
-|   │   └── QuotaResponse.cs
-|   ├── Options/
-|   │   └── AzureOptions.cs
-|   ├── Services/
-|   │   ├── IQuotaService.cs
-|   │   └── QuotaService.cs
-|   ├── Program.cs
-|   └── appsettings.json
-|
+│   ├── Clients/
+│   │   ├── IAzureQuotaClient.cs
+│   │   └── AzureQuotaClient.cs
+│   ├── Controllers/
+│   │   └── QuotaController.cs
+│   ├── Exceptions/
+│   │   ├── AzureServiceException.cs
+│   │   └── GlobalExceptionHandler.cs
+│   ├── Models/
+│   │   ├── ErrorResponse.cs
+│   │   ├── QuotaInfo.cs
+│   │   └── QuotaResponse.cs
+│   ├── Options/
+│   │   └── AzureOptions.cs
+│   ├── Services/
+│   │   ├── IKeyVaultService.cs
+│   │   ├── KeyVaultService.cs
+│   │   ├── IQuotaService.cs
+│   │   └── QuotaService.cs
+│   ├── iac/
+│   │   ├── subscription.bicep
+│   │   ├── main.bicep
+│   │   └── roleAssignment.bicep
+│   ├── AzureCapacityService.csproj
+│   ├── Program.cs
+│   └── appsettings.json
 ├── AzureCapacityService.Tests/
-|   └── Services/
-|       └── QuotaServiceTests.cs
-|
-├── iac/
-|   ├── main.bicep
-|   └── roleAssignment.bicep
-|
-├── DESIGN.md
-├── CSCP_DOMAIN.md
-├── IaC.md
+│   ├── Services/
+│   │   └── QuotaServiceTests.cs
+│   └── AzureCapacityService.Tests.csproj
+├── docs/
+│   ├── CSCP_DOMAIN.md
+│   └── IaC.md
 └── README.md
 ```
 
-The MVP remains a single ASP.NET Core application.
+The MVP is a single API application, not a microservices system. The diagram and file tree describe the current structure without requiring a separate frontend or database.
 
-Additional services or microservices are not required for the current scope.
+## 16. Infrastructure as Code
 
-## 15. Future Extensions
+The project uses Bicep to provision resources and permissions.
 
-After the MVP is completed, the application can be extended with additional functionality.
+- `AzureCapacityService/iac/subscription.bicep` — **subscription scope**; creates the resource group, invokes the application module, and invokes the Reader-role module.
+- `AzureCapacityService/iac/main.bicep` — **resource-group scope**; creates the Linux App Service Plan, Web App with system-assigned managed identity, Key Vault, App Settings, and vault-scoped role assignment.
+- `AzureCapacityService/iac/roleAssignment.bicep` — **subscription scope**; assigns Reader to the Web App managed identity.
 
-### Quota Modification
-
-Support quota increase requests through Azure Quota API.
-
-Azure provides operations for requesting or updating supported quota limits.
-
-### CRUD / Azure SDK Operations
-
-Explore additional Create, Read, Update, and Delete operations available through Azure SDK for supported Azure resources.
-
-This can be implemented as a separate extension after the read-only quota MVP is completed.
-
-### Additional Resource Providers
-
-Support providers other than:
-
-```text
-Microsoft.Compute
+```mermaid
+---
+config:
+  layout: elk
+  look: classic
+  flowchart:
+    curve: linear
+---
+flowchart TB
+    Root[subscription.bicep - subscription scope]
+    Root --> RG[Resource Group: rg-azure-capacity-dev]
+    Root --> Reader[roleAssignment.bicep: subscription Reader]
+    RG --> Main[main.bicep - resource-group scope]
+    Main --> Plan[Linux App Service Plan F1]
+    Main --> Web[Web App + System Assigned Identity]
+    Main --> Vault[Azure Key Vault - RBAC enabled]
+    Main --> KVRole[Key Vault Secrets User assignment]
+    Plan --> Web
+    Vault --> KVRole
+    Web --> KVRole
+    Web --> Reader
 ```
 
-For example:
+The subscription deployment can be validated locally:
 
-```text
-Microsoft.Network
-Microsoft.MachineLearningServices
+```bash
+az bicep build --file AzureCapacityService/iac/subscription.bicep
 ```
 
-### User Interface
+Preview changes:
 
-Add a graphical interface for selecting:
-
-```text
-Subscription
-Region
-Quota
+```bash
+az deployment sub what-if \
+  --name capacity-infra-dev \
+  --location swedencentral \
+  --template-file AzureCapacityService/iac/subscription.bicep \
+  --parameters appName="capacity-variksoft-dev-2026"
 ```
 
-and displaying quota utilization.
+Apply infrastructure changes under an identity authorized to create RBAC assignments:
 
-### Monitoring
-
-Add alerts when quota usage approaches its limit.
-
-Example:
-
-<p align="center">
-  <img src="https://i.imgur.com/CPMAGJa.png" height="100">
-</p>
-
-### Caching
-
-Cache quota information for a short period to reduce unnecessary Azure API requests.
-
-### Background Processing
-
-A background worker could periodically refresh quota information and calculate additional values such as:
-
-```text
-Usage percentage
-Near-limit status
-Last updated timestamp
+```bash
+az deployment sub create \
+  --name capacity-infra-dev \
+  --location swedencentral \
+  --template-file AzureCapacityService/iac/subscription.bicep \
+  --parameters appName="capacity-variksoft-dev-2026"
 ```
 
-## 16. Testing
-The project includes unit tests implemented with:
-```text
-xUnit
-Moq
+These commands use Bash line continuations. For PowerShell, use backticks or place the command on one line.
+
+Bicep was chosen because this is an Azure-only project with direct ARM integration and no requirement for multi-cloud state management.
+
+## 17. GitHub Actions CI/CD
+
+Application deployment is automated, but infrastructure deployment is currently a separate manual operation.
+
+```mermaid
+---
+config:
+  layout: elk
+  look: classic
+  flowchart:
+    curve: linear
+---
+flowchart TB
+    Dev[Developer push to main] --> CI[CI: restore, build, xUnit tests]
+    CI --> Decision{CI successful?}
+    Decision -->|No| Stop[Do not deploy]
+    Decision -->|Yes| CD[CD: publish .NET 10]
+    CD --> OIDC[GitHub OIDC to Azure deployment identity]
+    OIDC --> Deploy[Deploy package to Azure App Service]
+    IaC[Bicep infrastructure changes] --> Owner[Separate deployment by authorized account]
+    Owner --> Resources[Azure resources and RBAC]
+    Resources --> Deploy
 ```
 
-The current QuotaService tests cover:
-- finding a specific quota by name;
-- case-insensitive quota lookup;
-- returning null when a quota does not exist;
-- returning the quota list received from IAzureQuotaClient;
-- validating returned quota values including calculated Available capacity.
+### CI: `.github/workflows/ci.yml`
 
-IAzureQuotaClient is mocked, so the unit tests do not call Azure directly.
-The tests can be executed with:
-```text
-dotnet test
+- Runs on pushes to `main`, pull requests targeting `main`, and manual dispatch.
+- Restores and builds the API and test project with .NET 10.
+- Executes xUnit tests.
+
+### CD: `.github/workflows/cd.yml`
+
+- Runs after a successful CI workflow originating from a push to `main`, or by manual dispatch on `main`.
+- Checks out the associated commit and publishes the .NET 10 application.
+- Authenticates using `azure/login@v2` with OIDC.
+- Deploys to App Service using `azure/webapps-deploy@v3`.
+
+### OIDC: `.github/workflows/azure-auth.yml`
+
+A separate manually triggered workflow verifies Azure login and resource-group access. Repository variables used for Azure login are `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID`.
+
+These are **repository variables**, not authentication secrets. They identify the Azure client, tenant, and subscription; the workflow obtains its Azure token through OIDC. Variables can be used by workflows and are not appropriate for storing passwords, client secrets, or access tokens.
+
+### What requires a manual infrastructure deployment?
+
+| Change | Current deployment path |
+| --- | --- |
+| C# services, controllers, NuGet packages | Commit and push to `main` → CI/CD |
+| Frontend code hosted with the app | CI/CD **only if** frontend build and packaging are configured |
+| Bicep resources, RBAC, App Settings | Separate Bicep deployment |
+
+The GitHub deployment identity has Contributor access but cannot create RBAC role assignments. For that reason, the current CD workflow deploys the **application package only** and does not run the Bicep deployment.
+
+## 18. Testing and Verification
+
+Unit tests use xUnit and Moq. The existing `QuotaServiceTests` verify:
+
+- Case-insensitive lookup by quota name.
+- Returning `null` for a missing quota.
+- Returning a specific quota with expected limit, usage, and computed available value.
+- Returning the list received from the mocked Azure client.
+
+`IAzureQuotaClient` is mocked, so unit tests do not call Azure directly.
+
+Run tests from the repository root:
+
+```bash
+dotnet test AzureCapacityService.Tests/AzureCapacityService.Tests.csproj
 ```
 
-Integration tests can later verify communication with a real Azure subscription.
+Manual integration verification has included deploying the API, checking App Settings, and receiving a response from the deployed `/api/quotas` endpoint. These checks do **not** establish automated integration-test coverage, Key Vault secret-read success, or authorization of public API callers.
 
-Manual verification already includes:
-- retrieving real quota limits from Azure;
-- retrieving current quota usage;
-- verifying end-to-end asynchronous calls;
-- verifying CancellationToken propagation by cancelling an HTTP request;
-- verifying exception mapping from Azure-related failures to API HTTP responses;
-- verifying the generated OpenAPI document;
-- verifying that Azure SDK requests use the IHttpClientFactory-backed transport.
+## 19. Future Extensions
 
-## 17. Infrastructure as Code
-The project includes a Bicep-based Infrastructure as Code solution.
-The current IaC definition creates:
+### API security
 
-<p align="left">
-  <img src="https://i.imgur.com/Y6iEMpj.png" width="200">
-</p>
+Add caller authentication and authorization, restrict cross-subscription queries as appropriate, and consider rate limiting before production or multi-tenant use.
 
-main.bicep is deployed at resource-group scope and creates the App Service infrastructure.
+### Quota modification
 
-roleAssignment.bicep is deployed as a subscription-scope module because the RBAC assignment is created at subscription scope.
+Support quota increase requests as a separate feature with appropriate validation and stronger permissions.
 
-The Web App receives the application setting:
-```text 
-Azure__ResourceProvider = Microsoft.Compute 
+### Additional Azure SDK operations and resource providers
+
+Explore other supported operations and providers such as `Microsoft.Network` or `Microsoft.MachineLearningServices` after confirming their quota API behavior.
+
+### User interface
+
+Build a dashboard for selecting subscription, region, and quota, and displaying utilization. The current repository does not contain a dedicated UI or frontend build pipeline.
+
+### Monitoring and alerts
+
+Add utilization thresholds, metrics, and alert delivery:
+
+```mermaid
+---
+config:
+  layout: elk
+  look: classic
+  flowchart:
+    curve: linear
+---
+flowchart LR
+    Fetch[Periodic quota fetch] --> Calc[Calculate usage percentage]
+    Calc --> Check{Threshold exceeded?}
+    Check -->|Yes| Alert[Send alert]
+    Check -->|No| Wait[Wait for next check]
+    Alert --> Wait
 ```
-which maps to:
-```text 
-Azure:ResourceProvider in ASP.NET Core configuration.
+
+This diagram describes a **proposed** feature, not an existing background worker.
+
+### Caching and background processing
+
+Cache quota data briefly to reduce API calls. A background worker could periodically refresh data, calculate usage percentages and near-limit status, and record the last update time.
+
+### Key Vault verification
+
+Create a non-sensitive test secret and verify secret-read permissions through a controlled test that does not return the secret value. The service method exists, but it is not wired into an API endpoint or automated test.
+
+### Infrastructure automation
+
+Consider a separate, least-privilege IaC deployment workflow with appropriately scoped role-assignment permissions rather than expanding the application deployment identity's access unnecessarily.
+
+## 20. MVP Summary
+
+```mermaid
+---
+config:
+  layout: elk
+  look: classic
+  flowchart:
+    curve: linear
+---
+flowchart TB
+    Client[HTTP GET /api/quotas] --> API[ASP.NET Core .NET 10]
+    API --> Config[Default subscription and region]
+    Config --> Quotas[Azure Quota SDK]
+    Quotas --> Result[Limit + Usage + Available]
+    GitHub[GitHub Actions CI/CD] --> App[Azure App Service]
+    App --> API
+    Identity[App Service Managed Identity] --> Quotas
+    Identity -. authorized secret access .-> Vault[Key Vault - optional integration]
 ```
 
-Bicep was selected because the project is Azure-specific, already uses Azure Resource Manager and Azure SDK, and does not require multi-cloud infrastructure or separate Terraform state management.
+Implemented: Controllers, dependency injection, asynchronous quota retrieval, cancellation-token propagation, Azure SDK, computed available quota, centralized Azure error handling, logging, configuration via Options Pattern, default subscription and region, OpenAPI/Swagger UI, xUnit/Moq unit tests, Bicep infrastructure, managed identity/RBAC, Key Vault client/service registration, and GitHub Actions CI/CD.
 
-The template can be validated with:
-```text
-az bicep build --file iac/main.bicep
-```
+Not yet implemented: custom UI, API caller authentication, quota modification, monitoring, caching, background refresh, automated real-Azure integration tests, and a wired Key Vault verification flow.
 
-More details are available in [IAC.md](docs/IaC.md).
+<div align="center">
 
-## 18. MVP Summary
+**Azure Capacity Service** · ASP.NET Core · Azure SDK · Managed Identity · Bicep · GitHub Actions
 
-The first version of the application is intentionally simple and read-only.
+[CSCP Domain Notes](docs/CSCP_DOMAIN.md) &nbsp; · &nbsp; [Infrastructure Documentation](docs/IaC.md)
 
-<p align="center">
-  <img src="https://i.imgur.com/JXmYRB4.png" width="800">
-</p>
+<sub>Development MVP</sub>
 
-The implemented MVP includes:
-
-- ASP.NET Core Controllers;
-- dependency injection;
-- asynchronous request processing;
-- `CancellationToken` propagation;
-- Azure SDK integration;
-- quota limit retrieval;
-- current usage retrieval;
-- available capacity calculation;
-- centralized error handling;
-- structured logging;
-- `appsettings.json`;
-- Options Pattern;
-- OpenAPI publication;
-- Swagger UI;
-- Unit tests with xUnit and Moq;
-
-Quota modification, additional Azure SDK operations, UI, monitoring, caching, and support for additional Azure resource providers remain possible future extensions.
-
-## Documentation
-
-- [CSCP Domain One-Pager](docs/CSCP_DOMAIN.md)
-- [Infrastructure as Code](docs/IaC.md)
+</div>
