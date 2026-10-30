@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy to Azure App Service
+    name: Deploy Infrastructure and Application
     runs-on: ubuntu-latest
 
     if: >-
@@ -43,12 +43,6 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Publish application
-        run: |
-          dotnet publish AzureCapacityService/AzureCapacityService.csproj \
-            --configuration Release \
-            --output ./publish
-
       - name: Login to Azure using OIDC
         uses: azure/login@v2
         with:
@@ -56,8 +50,32 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Deploy Infrastructure using Bicep
+        shell: bash
+        run: |
+          az deployment sub create \
+            --name capacity-dev-deployment \
+            --location swedencentral \
+            --template-file AzureCapacityService/iac/subscription.bicep \
+            --parameters \
+              resourceGroupName=rg-azure-capacity-dev \
+              appName=capacity-variksoft-dev-2026
+
+      - name: Publish .NET Application
+        run: |
+          dotnet publish AzureCapacityService/AzureCapacityService.csproj \
+            --configuration Release \
+            --output ./publish
+
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: capacity-variksoft-dev-2026
           package: ./publish
+
+      - name: Verify Application
+        shell: bash
+        run: |
+          curl --fail --location --retry 5 --retry-delay 10 \
+            https://capacity-variksoft-dev-2026.azurewebsites.net/openapi/v1.json \
+            --output /dev/null
