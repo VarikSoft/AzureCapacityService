@@ -50,6 +50,46 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      # Key Vault names remain reserved after soft-delete. Recover the existing
+      # vault before the subscription-scope Bicep deployment recreates the app.
+      - name: Prepare Resource Group and recover Key Vault if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RESOURCE_GROUP="rg-azure-capacity-dev"
+          LOCATION="swedencentral"
+          KEY_VAULT="kv-mwebwlybok3gg"
+
+          # Required because Key Vault recovery targets an existing Resource Group.
+          az group create \
+            --name "$RESOURCE_GROUP" \
+            --location "$LOCATION" \
+            --output none
+
+          if az keyvault show \
+            --name "$KEY_VAULT" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query id -o tsv >/dev/null 2>&1; then
+            echo "Key Vault already exists; no recovery required."
+          else
+            DELETED_VAULT=$(az keyvault list-deleted \
+              --query "[?name=='$KEY_VAULT'].name | [0]" \
+              --output tsv)
+
+            if [ "$DELETED_VAULT" = "$KEY_VAULT" ]; then
+              echo "Recovering soft-deleted Key Vault $KEY_VAULT..."
+              az keyvault recover \
+                --name "$KEY_VAULT" \
+                --location "$LOCATION" \
+                --resource-group "$RESOURCE_GROUP" \
+                --output none
+              echo "Key Vault recovered."
+            else
+              echo "No soft-deleted Key Vault found; Bicep will create it."
+            fi
+          fi
+
       - name: Deploy Infrastructure using Bicep
         shell: bash
         run: |
