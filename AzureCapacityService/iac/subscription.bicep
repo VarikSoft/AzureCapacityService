@@ -34,6 +34,14 @@ module quotaRoleAssignment './roleAssignment.bicep' = {
 
   params: {
     principalId: appInfrastructure.outputs.webAppPrincipalId
-    appName: appName
+  }
+}
+
+module keyVaultRoleAssignment './keyVaultRoleAssignment.bicep' = {
+  name: 'assign-keyvault-secrets-user'
+  scope: resourceGroup
+  params: {
+    keyVaultName: appInfrastructure.outputs.keyVaultName
+    principalId: appInfrastructure.outputs.webAppPrincipalId
   }
 }
