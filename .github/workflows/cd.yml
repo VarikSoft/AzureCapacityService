@@ -1,4 +1,3 @@
-
 name: Azure Capacity Service CD
 
 on:
@@ -49,57 +48,55 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          enable-AzPSSession: true
 
-      # Key Vault names remain reserved after soft-delete. Recover the existing
-      # vault before the subscription-scope Bicep deployment recreates the app.
-      - name: Prepare Resource Group and recover Key Vault if needed
-        shell: bash
-        run: |
-          set -euo pipefail
+      # The resource group must exist before a soft-deleted Key Vault can be recovered.
+      - name: Bootstrap Resource Group with Bicep
+        uses: azure/bicep-deploy@v2
+        with:
+          type: deployment
+          operation: create
+          name: capacity-dev-bootstrap
+          scope: subscription
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          location: swedencentral
+          template-file: AzureCapacityService/iac/bootstrap.bicep
 
-          RESOURCE_GROUP="rg-azure-capacity-dev"
-          LOCATION="swedencentral"
-          KEY_VAULT="kv-mwebwlybok3gg"
+      # Recovering a soft-deleted vault is a lifecycle operation, not provisioning.
+      - name: Recover soft-deleted Key Vault if needed
+        uses: azure/powershell@v3
+        with:
+          azPSVersion: latest
+          inlineScript: |
+            $vaultName = 'kv-mwebwlybok3gg'
+            $resourceGroupName = 'rg-azure-capacity-dev'
+            $location = 'swedencentral'
 
-          # Required because Key Vault recovery targets an existing Resource Group.
-          az group create \
-            --name "$RESOURCE_GROUP" \
-            --location "$LOCATION" \
-            --output none
-
-          if az keyvault show \
-            --name "$KEY_VAULT" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query id -o tsv >/dev/null 2>&1; then
-            echo "Key Vault already exists; no recovery required."
-          else
-            DELETED_VAULT=$(az keyvault list-deleted \
-              --query "[?name=='$KEY_VAULT'].name | [0]" \
-              --output tsv)
-
-            if [ "$DELETED_VAULT" = "$KEY_VAULT" ]; then
-              echo "Recovering soft-deleted Key Vault $KEY_VAULT..."
-              az keyvault recover \
-                --name "$KEY_VAULT" \
-                --location "$LOCATION" \
-                --resource-group "$RESOURCE_GROUP" \
-                --output none
-              echo "Key Vault recovered."
-            else
-              echo "No soft-deleted Key Vault found; Bicep will create it."
-            fi
-          fi
+            $activeVault = Get-AzKeyVault -VaultName $vaultName -ResourceGroupName $resourceGroupName -ErrorAction SilentlyContinue
+            if ($null -ne $activeVault) {
+              Write-Host 'Key Vault already exists; no recovery required.'
+            } else {
+              $deletedVault = Get-AzKeyVault -VaultName $vaultName -InRemovedState -ErrorAction SilentlyContinue
+              if ($null -ne $deletedVault) {
+                Write-Host "Recovering soft-deleted Key Vault $vaultName..."
+                Undo-AzKeyVaultRemoval -VaultName $vaultName -ResourceGroupName $resourceGroupName -Location $location | Out-Null
+                Write-Host 'Key Vault recovered.'
+              } else {
+                Write-Host 'No soft-deleted Key Vault found; Bicep will create it.'
+              }
+            }
 
       - name: Deploy Infrastructure using Bicep
-        shell: bash
-        run: |
-          az deployment sub create \
-            --name capacity-dev-deployment \
-            --location swedencentral \
-            --template-file AzureCapacityService/iac/subscription.bicep \
-            --parameters \
-              resourceGroupName=rg-azure-capacity-dev \
-              appName=capacity-variksoft-dev-2026
+        uses: azure/bicep-deploy@v2
+        with:
+          type: deployment
+          operation: create
+          name: capacity-dev-deployment
+          scope: subscription
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          location: swedencentral
+          template-file: AzureCapacityService/iac/subscription.bicep
+          parameters: '{"resourceGroupName":"rg-azure-capacity-dev","appName":"capacity-variksoft-dev-2026"}'
 
       - name: Publish .NET Application
         run: |
