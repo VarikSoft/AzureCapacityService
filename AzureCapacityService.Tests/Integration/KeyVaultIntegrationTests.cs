@@ -24,6 +24,7 @@ public class KeyVaultIntegrationTests
             .Setup(client => client.GetSecretAsync(
                 "DeploymentVerificationSecret",
                 null,
+                null,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(Response.FromValue(secret, Mock.Of<Response>()));
 
@@ -42,6 +43,7 @@ public class KeyVaultIntegrationTests
         Assert.True(canReadSecret);
         secretClient.Verify(client => client.GetSecretAsync(
             "DeploymentVerificationSecret",
+            null,
             null,
             It.IsAny<CancellationToken>()), Times.Once);
     }
