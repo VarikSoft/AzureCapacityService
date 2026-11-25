@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <!-- Audit direct and transitive NuGet packages on restore. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditLevel>high</NuGetAuditLevel>
+    <!-- Block CI builds for high (NU1903) and critical (NU1904) advisories. -->
+    <WarningsAsErrors>$(WarningsAsErrors);NU1903;NU1904</WarningsAsErrors>
+  </PropertyGroup>
+</Project>

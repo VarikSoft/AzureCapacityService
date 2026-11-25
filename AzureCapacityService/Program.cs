@@ -69,3 +69,6 @@ app.MapControllers(); // This says, please use routes from the attributes [Route
 app.Run();
 
 // NuGet packages: Azure.Identity, Azure.ResourceManager.Quota
+
+// Expose the entry point to WebApplicationFactory in integration tests.
+public partial class Program { }
