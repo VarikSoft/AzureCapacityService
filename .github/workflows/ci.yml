@@ -27,7 +27,7 @@ jobs:
       - name: Scan repository with Gitleaks
         uses: gitleaks/gitleaks-action@v2
         env:
-          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-and-test:
     name: Build, Unit Tests and Integration Tests
